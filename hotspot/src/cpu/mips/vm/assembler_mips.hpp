@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 2013, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2019, Loongson Technology. All rights reserved.
+ * Copyright (c) 2015, 2020, Loongson Technology. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -165,7 +165,7 @@ class Argument VALUE_OBJ_CLASS_SPEC {
 
   Register as_Register()const {
     assert(is_Register(), "must be a register argument");
-    return ::as_Register(A0->encoding() + _number);
+    return ::as_Register(RA0->encoding() + _number);
   }
   FloatRegister  as_FloatRegister()const {
     assert(is_FloatRegister(), "must be a float register argument");
@@ -1188,7 +1188,7 @@ public:
 
   void jalr(Register rd, Register rs) { emit_long( ((int)rs->encoding()<<21) | ((int)rd->encoding()<<11) | jalr_op); has_delay_slot(); }
   void jalr(Register rs)              { jalr(RA, rs); }
-  void jalr()                         { jalr(T9); }
+  void jalr()                         { jalr(RT9); }
 
   void jr(Register rs) { emit_long(((int)rs->encoding()<<21) | jr_op); has_delay_slot(); }
 

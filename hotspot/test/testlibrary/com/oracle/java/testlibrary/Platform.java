@@ -136,6 +136,10 @@ public class Platform {
         return osArch;
     }
 
+    public static boolean isMIPS() {
+        return isArch("mips.*");
+    }
+
     /**
      * Return a boolean for whether we expect to be able to attach
      * the SA to our own processes on this system.

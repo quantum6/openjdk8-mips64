@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1998, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1998, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -1538,10 +1538,18 @@ bool IdealLoopTree::beautify_loops( PhaseIdealLoop *phase ) {
   // If I am a shared header (multiple backedges), peel off the many
   // backedges into a private merge point and use the merge point as
   // the one true backedge.
-  if( _head->req() > 3 ) {
+  if (_head->req() > 3) {
     // Merge the many backedges into a single backedge but leave
     // the hottest backedge as separate edge for the following peel.
-    merge_many_backedges( phase );
+    if (!_irreducible) {
+      merge_many_backedges( phase );
+    }
+
+    // When recursively beautify my children, split_fall_in can change
+    // loop tree structure when I am an irreducible loop. Then the head
+    // of my children has a req() not bigger than 3. Here we need to set
+    // result to true to catch that case in order to tell the caller to
+    // rebuild loop tree. See issue JDK-8244407 for details.
     result = true;
   }
 
@@ -3272,6 +3280,41 @@ Node* PhaseIdealLoop::compute_lca_of_uses(Node* n, Node* early, bool verify) {
   }
   assert(!had_error, "bad dominance");
   return LCA;
+}
+
+// Check the shape of the graph at the loop entry. In some cases,
+// the shape of the graph does not match the shape outlined below.
+// That is caused by the Opaque1 node "protecting" the shape of
+// the graph being removed by, for example, the IGVN performed
+// in PhaseIdealLoop::build_and_optimize().
+//
+// After the Opaque1 node has been removed, optimizations (e.g., split-if,
+// loop unswitching, and IGVN, or a combination of them) can freely change
+// the graph's shape. As a result, the graph shape outlined below cannot
+// be guaranteed anymore.
+bool PhaseIdealLoop::is_canonical_main_loop_entry(CountedLoopNode* cl) {
+  assert(cl->is_main_loop(), "check should be applied to main loops");
+  Node* ctrl = cl->in(LoopNode::EntryControl);
+  if (ctrl == NULL || (!ctrl->is_IfTrue() && !ctrl->is_IfFalse())) {
+    return false;
+  }
+  Node* iffm = ctrl->in(0);
+  if (iffm == NULL || !iffm->is_If()) {
+    return false;
+  }
+  Node* bolzm = iffm->in(1);
+  if (bolzm == NULL || !bolzm->is_Bool()) {
+    return false;
+  }
+  Node* cmpzm = bolzm->in(1);
+  if (cmpzm == NULL || !cmpzm->is_Cmp()) {
+    return false;
+  }
+  Node* opqzm = cmpzm->in(2);
+  if (opqzm == NULL || opqzm->Opcode() != Op_Opaque1) {
+    return false;
+  }
+  return true;
 }
 
 //------------------------------get_late_ctrl----------------------------------

@@ -21,10 +21,10 @@
  * under the License.
  */
 /*
- * Copyright (c) 2005, 2013, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2005, 2018, Oracle and/or its affiliates. All rights reserved.
  */
 /*
- * $Id: DOMTransform.java 1333415 2012-05-03 12:03:51Z coheigea $
+ * $Id: DOMTransform.java 1788465 2017-03-24 15:10:51Z coheigea $
  */
 package org.jcp.xml.dsig.internal.dom;
 
@@ -34,26 +34,30 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.spec.AlgorithmParameterSpec;
 
+import javax.xml.crypto.Data;
+import javax.xml.crypto.MarshalException;
+import javax.xml.crypto.XMLCryptoContext;
+import javax.xml.crypto.dom.DOMCryptoContext;
+import javax.xml.crypto.dsig.Transform;
+import javax.xml.crypto.dsig.TransformException;
+import javax.xml.crypto.dsig.TransformService;
+import javax.xml.crypto.dsig.XMLSignature;
+import javax.xml.crypto.dsig.dom.DOMSignContext;
+
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
-import javax.xml.crypto.*;
-import javax.xml.crypto.dsig.*;
-import javax.xml.crypto.dom.DOMCryptoContext;
-import javax.xml.crypto.dsig.dom.DOMSignContext;
-
 /**
  * DOM-based abstract implementation of Transform.
  *
- * @author Sean Mullan
  */
 public class DOMTransform extends DOMStructure implements Transform {
 
     protected TransformService spi;
 
     /**
-     * Creates a <code>DOMTransform</code>.
+     * Creates a {@code DOMTransform}.
      *
      * @param spi the TransformService
      */
@@ -62,9 +66,8 @@ public class DOMTransform extends DOMStructure implements Transform {
     }
 
     /**
-     * Creates a <code>DOMTransform</code> from an element. This constructor
-     * invokes the abstract {@link #unmarshalParams unmarshalParams} method to
-     * unmarshal any algorithm-specific input parameters.
+     * Creates a {@code DOMTransform} from an element. It unmarshals any
+     * algorithm-specific input parameters.
      *
      * @param transElem a Transform element
      */
@@ -107,9 +110,9 @@ public class DOMTransform extends DOMStructure implements Transform {
     }
 
     /**
-     * This method invokes the abstract {@link #marshalParams marshalParams}
-     * method to marshal any algorithm-specific parameters.
+     * This method marshals any algorithm-specific parameters.
      */
+    @Override
     public void marshal(Node parent, String dsPrefix, DOMCryptoContext context)
         throws MarshalException
     {
@@ -138,10 +141,10 @@ public class DOMTransform extends DOMStructure implements Transform {
      * Transforms the specified data using the underlying transform algorithm.
      *
      * @param data the data to be transformed
-     * @param sc the <code>XMLCryptoContext</code> containing
-     *    additional context (may be <code>null</code> if not applicable)
+     * @param xc the {@code XMLCryptoContext} containing
+     *    additional context (may be {@code null} if not applicable)
      * @return the transformed data
-     * @throws NullPointerException if <code>data</code> is <code>null</code>
+     * @throws NullPointerException if {@code data} is {@code null}
      * @throws XMLSignatureException if an unexpected error occurs while
      *    executing the transform
      */
@@ -155,12 +158,12 @@ public class DOMTransform extends DOMStructure implements Transform {
      * Transforms the specified data using the underlying transform algorithm.
      *
      * @param data the data to be transformed
-     * @param sc the <code>XMLCryptoContext</code> containing
-     *    additional context (may be <code>null</code> if not applicable)
-     * @param os the <code>OutputStream</code> that should be used to write
+     * @param xc     the {@code XMLCryptoContext} containing
+     *    additional context (may be {@code null} if not applicable)
+     * @param os the {@code OutputStream} that should be used to write
      *    the transformed data to
      * @return the transformed data
-     * @throws NullPointerException if <code>data</code> is <code>null</code>
+     * @throws NullPointerException if {@code data} is {@code null}
      * @throws XMLSignatureException if an unexpected error occurs while
      *    executing the transform
      */
@@ -181,9 +184,9 @@ public class DOMTransform extends DOMStructure implements Transform {
         }
         Transform otransform = (Transform)o;
 
-        return (getAlgorithm().equals(otransform.getAlgorithm()) &&
+        return getAlgorithm().equals(otransform.getAlgorithm()) &&
                 DOMUtils.paramsEqual(getParameterSpec(),
-                                     otransform.getParameterSpec()));
+                                     otransform.getParameterSpec());
     }
 
     @Override
@@ -201,16 +204,16 @@ public class DOMTransform extends DOMStructure implements Transform {
     /**
      * Transforms the specified data using the underlying transform algorithm.
      * This method invokes the {@link #marshal marshal} method and passes it
-     * the specified <code>DOMSignContext</code> before transforming the data.
+     * the specified {@code DOMSignContext} before transforming the data.
      *
      * @param data the data to be transformed
-     * @param sc the <code>XMLCryptoContext</code> containing
-     *    additional context (may be <code>null</code> if not applicable)
+     * @param sc the {@code XMLCryptoContext} containing
+     *    additional context (may be {@code null} if not applicable)
      * @param context the marshalling context
      * @return the transformed data
      * @throws MarshalException if an exception occurs while marshalling
-     * @throws NullPointerException if <code>data</code> or <code>context</code>
-     *    is <code>null</code>
+     * @throws NullPointerException if {@code data} or {@code context}
+     *    is {@code null}
      * @throws XMLSignatureException if an unexpected error occurs while
      *    executing the transform
      */

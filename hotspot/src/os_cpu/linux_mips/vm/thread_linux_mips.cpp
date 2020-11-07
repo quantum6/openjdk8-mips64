@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2003, 2013, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2019, Loongson Technology. All rights reserved.
+ * Copyright (c) 2015, 2020, Loongson Technology. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -45,13 +45,20 @@ bool JavaThread::pd_get_top_frame_for_signal_handler(frame* fr_addr,
   void* ucontext, bool isInJava) {
 
   assert(Thread::current() == this, "caller must be current thread");
-  assert(this->is_Java_thread(), "must be JavaThread");
+  return pd_get_top_frame(fr_addr, ucontext, isInJava);
+}
 
+bool JavaThread::pd_get_top_frame_for_profiling(frame* fr_addr, void* ucontext, bool isInJava) {
+  return pd_get_top_frame(fr_addr, ucontext, isInJava);
+}
+
+bool JavaThread::pd_get_top_frame(frame* fr_addr, void* ucontext, bool isInJava) {
+  assert(this->is_Java_thread(), "must be JavaThread");
   JavaThread* jt = (JavaThread *)this;
 
   // If we have a last_Java_frame, then we should use it even if
   // isInJava == true.  It should be more reliable than ucontext info.
-  if (jt->has_last_Java_frame()) {
+  if (jt->has_last_Java_frame() && jt->frame_anchor()->walkable()) {
     *fr_addr = jt->pd_last_frame();
     return true;
   }

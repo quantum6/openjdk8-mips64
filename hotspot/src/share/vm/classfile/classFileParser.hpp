@@ -47,6 +47,7 @@ class ClassFileParser VALUE_OBJ_CLASS_SPEC {
   bool _relax_verify;
   u2   _major_version;
   u2   _minor_version;
+  u2   _this_class_index;
   Symbol* _class_name;
   ClassLoaderData* _loader_data;
   KlassHandle _host_klass;
@@ -274,7 +275,12 @@ class ClassFileParser VALUE_OBJ_CLASS_SPEC {
   u2 parse_generic_signature_attribute(TRAPS);
   void parse_classfile_sourcefile_attribute(TRAPS);
   void parse_classfile_source_debug_extension_attribute(int length, TRAPS);
-  u2   parse_classfile_inner_classes_attribute(u1* inner_classes_attribute_start,
+
+  // Check for circularity in InnerClasses attribute.
+  bool check_inner_classes_circularity(const ConstantPool* cp, int length, TRAPS);
+
+  u2   parse_classfile_inner_classes_attribute(const ConstantPool* cp,
+                                               u1* inner_classes_attribute_start,
                                                bool parsed_enclosingmethod_attribute,
                                                u2 enclosing_method_class_index,
                                                u2 enclosing_method_method_index,
@@ -491,6 +497,13 @@ PRAGMA_DIAG_POP
   static void check_super_interface_access(instanceKlassHandle this_klass, TRAPS);
   static void check_final_method_override(instanceKlassHandle this_klass, TRAPS);
   static void check_illegal_static_method(instanceKlassHandle this_klass, TRAPS);
+
+  u2 this_class_index() const { return _this_class_index; }
+
+#if INCLUDE_JFR
+  ClassFileStream* clone_stream() const;
+  void set_klass_to_deallocate(InstanceKlass* klass);
+#endif // INCLUDE_JFR
 };
 
 #endif // SHARE_VM_CLASSFILE_CLASSFILEPARSER_HPP

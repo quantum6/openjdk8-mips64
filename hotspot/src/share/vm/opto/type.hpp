@@ -165,6 +165,7 @@ private:
 #endif
 
   const Type *meet_helper(const Type *t, bool include_speculative) const;
+  void check_symmetrical(const Type *t, const Type *mt) const;
 
 protected:
   // Each class of type is also identified by its base.
@@ -433,7 +434,6 @@ public:
 
 private:
   // support arrays
-  static const BasicType _basic_type[];
   static const Type*        _zero_type[T_CONFLICT+1];
   static const Type* _const_basic_type[T_CONFLICT+1];
 };
@@ -1153,6 +1153,8 @@ public:
 
   const TypeAryPtr* cast_to_stable(bool stable, int stable_dimension = 1) const;
   int stable_dimension() const;
+
+  static jint max_array_length(BasicType etype) ;
 
   // Convenience common pre-built types.
   static const TypeAryPtr *RANGE;

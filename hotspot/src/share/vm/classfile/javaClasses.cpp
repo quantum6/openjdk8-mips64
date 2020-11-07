@@ -1047,7 +1047,8 @@ void java_lang_Thread::set_thread_status(oop java_thread,
 
 // Read thread status value from threadStatus field in java.lang.Thread java class.
 java_lang_Thread::ThreadStatus java_lang_Thread::get_thread_status(oop java_thread) {
-  assert(Thread::current()->is_Watcher_thread() || Thread::current()->is_VM_thread() ||
+  assert(Threads_lock->owned_by_self() || Thread::current()->is_Watcher_thread() ||
+         Thread::current()->is_VM_thread() ||
          JavaThread::current()->thread_state() == _thread_in_vm,
          "Java Thread is not running in vm");
   // The threadStatus is only present starting in 1.5
@@ -1233,6 +1234,16 @@ oop java_lang_Throwable::message(Handle throwable) {
   return throwable->obj_field(detailMessage_offset);
 }
 
+
+// Return Symbol for detailed_message or NULL
+Symbol* java_lang_Throwable::detail_message(oop throwable) {
+  PRESERVE_EXCEPTION_MARK;  // Keep original exception
+  oop detailed_message = java_lang_Throwable::message(throwable);
+  if (detailed_message != NULL) {
+    return java_lang_String::as_symbol(detailed_message, THREAD);
+  }
+  return NULL;
+}
 
 void java_lang_Throwable::set_message(oop throwable, oop value) {
   throwable->obj_field_put(detailMessage_offset, value);

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 2014, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2017, 2019, Loongson Technology. All rights reserved.
+ * Copyright (c) 2017, 2020, Loongson Technology. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -46,6 +46,21 @@
 #include "gc_implementation/g1/g1SATBCardTableModRefBS.hpp"
 #include "gc_implementation/g1/heapRegion.hpp"
 #endif // INCLUDE_ALL_GCS
+
+#define A0 RA0
+#define A1 RA1
+#define A2 RA2
+#define A3 RA3
+#define A4 RA4
+#define A5 RA5
+#define A6 RA6
+#define A7 RA7
+#define T0 RT0
+#define T1 RT1
+#define T2 RT2
+#define T3 RT3
+#define T8 RT8
+#define T9 RT9
 
 // Implementation of MacroAssembler
 
@@ -466,7 +481,7 @@ void MacroAssembler::atomic_inc32(address counter_addr, int inc, Register tmp_re
 
   li(tmp_reg1, counter_addr);
   bind(again);
-  if(UseSyncLevel >= 3000 || UseSyncLevel < 2000) sync();
+  if (UseSyncLevel >= 10000 || UseSyncLevel == 1000 || UseSyncLevel == 4000) sync();
   ll(tmp_reg2, tmp_reg1, 0);
   addi(tmp_reg2, tmp_reg2, inc);
   sc(tmp_reg2, tmp_reg1, 0);
@@ -2517,7 +2532,7 @@ void MacroAssembler::cmpxchg32(Register x_reg, Address dest, Register c_reg) {
 
   bind(again);
 
-  if(UseSyncLevel >= 3000 || UseSyncLevel < 2000) sync();
+  if (UseSyncLevel >= 10000 || UseSyncLevel == 1000 || UseSyncLevel == 4000) sync();
   ll(AT, dest);
   bne(AT, c_reg, nequal);
   delayed()->nop();
@@ -2543,7 +2558,7 @@ void MacroAssembler::cmpxchg(Register x_reg, Address dest, Register c_reg) {
   Label done, again, nequal;
 
   bind(again);
-  if(UseSyncLevel >= 3000 || UseSyncLevel < 2000) sync();
+  if (UseSyncLevel >= 10000 || UseSyncLevel == 1000 || UseSyncLevel == 4000) sync();
 #ifdef _LP64
   lld(AT, dest);
 #else
@@ -2589,7 +2604,7 @@ void MacroAssembler::cmpxchg8(Register x_regLo, Register x_regHi, Address dest, 
 
   bind(again);
 
-  if(UseSyncLevel >= 3000 || UseSyncLevel < 2000) sync();
+  if (UseSyncLevel >= 10000 || UseSyncLevel == 1000 || UseSyncLevel == 4000) sync();
   lld(AT, dest);
   bne(AT, c_reg, nequal);
   delayed()->nop();

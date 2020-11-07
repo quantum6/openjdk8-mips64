@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 2013, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2019, Loongson Technology. All rights reserved.
+ * Copyright (c) 2015, 2020, Loongson Technology. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -409,7 +409,7 @@ class MacroAssembler: public Assembler {
     // stack grows down, caller passes positive offset
     assert(offset > 0, "must bang with negative offset");
     if (offset <= 32768) {
-      sw(A0, SP, -offset);
+      sw(RA0, SP, -offset);
     } else {
 #ifdef _LP64
       li(AT, offset);
@@ -418,7 +418,7 @@ class MacroAssembler: public Assembler {
       move(AT, offset);
       sub(AT, SP, AT);
 #endif
-      sw(A0, AT, 0);
+      sw(RA0, AT, 0);
     }
   }
 

@@ -99,11 +99,13 @@ define_pd_global(intx, AllocatePrefetchDistance,     -1);
   product(bool, UseCodeCacheAllocOpt, true,                                 \
                 "Allocate code cache within 32-bit memory address space")   \
                                                                             \
-  product(intx, UseSyncLevel, 3000,                                         \
+  product(intx, UseSyncLevel, 10000,                                        \
                 "The sync level on Loongson CPUs"                           \
-                "default: for all Loongson CPUs, UseSyncLevel == 3000, "    \
-                "for GS464E, UseSyncLevel == 2000"                          \
-                "for GS464, UseSyncLevel == 1000")                          \
+                "UseSyncLevel == 10000, 111, for all Loongson CPUs, "       \
+                "UseSyncLevel == 4000, 101, maybe for GS464V"               \
+                "UseSyncLevel == 3000, 001, maybe for GS464V"               \
+                "UseSyncLevel == 2000, 011, maybe for GS464E/GS264"         \
+                "UseSyncLevel == 1000, 110, maybe for GS464")               \
                                                                             \
   develop(bool, UseBoundCheckInstruction, false,                            \
                 "Use bound check instruction")                              \

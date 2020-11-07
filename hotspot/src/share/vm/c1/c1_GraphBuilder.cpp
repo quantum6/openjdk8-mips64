@@ -34,6 +34,7 @@
 #include "ci/ciMemberName.hpp"
 #include "compiler/compileBroker.hpp"
 #include "interpreter/bytecode.hpp"
+#include "jfr/jfrEvents.hpp"
 #include "runtime/sharedRuntime.hpp"
 #include "runtime/compilationPolicy.hpp"
 #include "utilities/bitMap.inline.hpp"
@@ -1704,6 +1705,23 @@ void GraphBuilder::access_field(Bytecodes::Code code) {
         Value replacement = !needs_patching ? _memory->load(load) : load;
         if (replacement != load) {
           assert(replacement->is_linked() || !replacement->can_be_linked(), "should already by linked");
+          // Writing an (integer) value to a boolean, byte, char or short field includes an implicit narrowing
+          // conversion. Emit an explicit conversion here to get the correct field value after the write.
+          BasicType bt = field->type()->basic_type();
+          switch (bt) {
+          case T_BOOLEAN:
+          case T_BYTE:
+            replacement = append(new Convert(Bytecodes::_i2b, replacement, as_ValueType(bt)));
+            break;
+          case T_CHAR:
+            replacement = append(new Convert(Bytecodes::_i2c, replacement, as_ValueType(bt)));
+            break;
+          case T_SHORT:
+            replacement = append(new Convert(Bytecodes::_i2s, replacement, as_ValueType(bt)));
+            break;
+          default:
+            break;
+          }
           push(type, replacement);
         } else {
           push(type, append(load));
@@ -2375,7 +2393,7 @@ XHandlers* GraphBuilder::handle_exception(Instruction* instruction) {
   if (!has_handler() && (!instruction->needs_exception_state() || instruction->exception_state() != NULL)) {
     assert(instruction->exception_state() == NULL
            || instruction->exception_state()->kind() == ValueStack::EmptyExceptionState
-           || (instruction->exception_state()->kind() == ValueStack::ExceptionState && _compilation->env()->jvmti_can_access_local_variables()),
+           || (instruction->exception_state()->kind() == ValueStack::ExceptionState && _compilation->env()->should_retain_local_variables()),
            "exception_state should be of exception kind");
     return new XHandlers();
   }
@@ -2466,7 +2484,7 @@ XHandlers* GraphBuilder::handle_exception(Instruction* instruction) {
       // This scope and all callees do not handle exceptions, so the local
       // variables of this scope are not needed. However, the scope itself is
       // required for a correct exception stack trace -> clear out the locals.
-      if (_compilation->env()->jvmti_can_access_local_variables()) {
+      if (_compilation->env()->should_retain_local_variables()) {
         cur_state = cur_state->copy(ValueStack::ExceptionState, cur_state->bci());
       } else {
         cur_state = cur_state->copy(ValueStack::EmptyExceptionState, cur_state->bci());
@@ -3352,7 +3370,7 @@ ValueStack* GraphBuilder::copy_state_exhandling_with_bci(int bci) {
 ValueStack* GraphBuilder::copy_state_for_exception_with_bci(int bci) {
   ValueStack* s = copy_state_exhandling_with_bci(bci);
   if (s == NULL) {
-    if (_compilation->env()->jvmti_can_access_local_variables()) {
+    if (_compilation->env()->should_retain_local_variables()) {
       s = state()->copy(ValueStack::ExceptionState, bci);
     } else {
       s = state()->copy(ValueStack::EmptyExceptionState, bci);
@@ -3465,10 +3483,16 @@ bool GraphBuilder::try_inline_intrinsics(ciMethod* callee) {
 #endif
       break;
 
-#ifdef TRACE_HAVE_INTRINSICS
-    case vmIntrinsics::_classID:
-    case vmIntrinsics::_threadID:
-      preserves_state = true;
+#ifdef JFR_HAVE_INTRINSICS
+#if defined(_LP64) || !defined(TRACE_ID_CLASS_SHIFT)
+    case vmIntrinsics::_getClassId:
+      preserves_state = false;
+      cantrap = false;
+      break;
+#endif
+
+    case vmIntrinsics::_getEventWriter:
+      preserves_state = false;
       cantrap = true;
       break;
 
@@ -4401,6 +4425,30 @@ void GraphBuilder::append_unsafe_CAS(ciMethod* callee) {
 }
 
 
+static void post_inlining_event(EventCompilerInlining* event,
+                                int compile_id,
+                                const char* msg,
+                                bool success,
+                                int bci,
+                                ciMethod* caller,
+                                ciMethod* callee) {
+  assert(caller != NULL, "invariant");
+  assert(callee != NULL, "invariant");
+  assert(event != NULL, "invariant");
+  assert(event->should_commit(), "invariant");
+  JfrStructCalleeMethod callee_struct;
+  callee_struct.set_type(callee->holder()->name()->as_utf8());
+  callee_struct.set_name(callee->name()->as_utf8());
+  callee_struct.set_descriptor(callee->signature()->as_symbol()->as_utf8());
+  event->set_compileId(compile_id);
+  event->set_message(msg);
+  event->set_succeeded(success);
+  event->set_bci(bci);
+  event->set_caller(caller->get_Method());
+  event->set_callee(callee_struct);
+  event->commit();
+}
+
 void GraphBuilder::print_inlining(ciMethod* callee, const char* msg, bool success) {
   CompileLog* log = compilation()->log();
   if (log != NULL) {
@@ -4415,6 +4463,11 @@ void GraphBuilder::print_inlining(ciMethod* callee, const char* msg, bool succes
       else
         log->inline_fail("reason unknown");
     }
+  }
+
+  EventCompilerInlining event;
+  if (event.should_commit()) {
+    post_inlining_event(&event, compilation()->env()->task()->compile_id(), msg, success, bci(), method(), callee);
   }
 
   if (!PrintInlining && !compilation()->method()->has_option("PrintInlining")) {

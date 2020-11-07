@@ -38,6 +38,7 @@
 #include "compiler/compileLog.hpp"
 #include "compiler/disassembler.hpp"
 #include "compiler/oopMap.hpp"
+#include "jfr/jfrEvents.hpp"
 #include "opto/addnode.hpp"
 #include "opto/block.hpp"
 #include "opto/c2compiler.hpp"
@@ -71,7 +72,6 @@
 #include "runtime/signature.hpp"
 #include "runtime/stubRoutines.hpp"
 #include "runtime/timer.hpp"
-#include "trace/tracing.hpp"
 #include "utilities/copy.hpp"
 #if defined AD_MD_HPP
 # include AD_MD_HPP
@@ -88,7 +88,6 @@
 #elif defined TARGET_ARCH_MODEL_mips_64
 # include "adfiles/ad_mips_64.hpp"
 #endif
-
 
 // -------------------- Compile::mach_constant_base_node -----------------------
 // Constant table base node singleton.
@@ -1171,6 +1170,9 @@ void Compile::Init(int aliaslevel) {
   _expensive_nodes = new(comp_arena()) GrowableArray<Node*>(comp_arena(), 8,  0, NULL);
   _range_check_casts = new(comp_arena()) GrowableArray<Node*>(comp_arena(), 8,  0, NULL);
   register_library_intrinsics();
+#ifdef ASSERT
+  _type_verify_symmetry = true;
+#endif
 }
 
 //---------------------------init_start----------------------------------------
@@ -2084,6 +2086,23 @@ void Compile::inline_incrementally(PhaseIterGVN& igvn) {
 }
 
 
+// Remove edges from "root" to each SafePoint at a backward branch.
+// They were inserted during parsing (see add_safepoint()) to make
+// infinite loops without calls or exceptions visible to root, i.e.,
+// useful.
+void Compile::remove_root_to_sfpts_edges() {
+  Node *r = root();
+  if (r != NULL) {
+    for (uint i = r->req(); i < r->len(); ++i) {
+      Node *n = r->in(i);
+      if (n != NULL && n->is_SafePoint()) {
+        r->rm_prec(i);
+        --i;
+      }
+    }
+  }
+}
+
 //------------------------------Optimize---------------------------------------
 // Given a graph, optimize it.
 void Compile::Optimize() {
@@ -2138,6 +2157,10 @@ void Compile::Optimize() {
 
     if (failing())  return;
   }
+
+  // Now that all inlining is over, cut edge from root to loop
+  // safepoints
+  remove_root_to_sfpts_edges();
 
   // Remove the speculative part of types and clean up the graph from
   // the extra CastPP nodes whose only purpose is to carry them. Do
@@ -3021,8 +3044,10 @@ void Compile::final_graph_reshaping_impl( Node *n, Final_Reshape_Counts &frc) {
             break;
           }
         }
-        assert(proj != NULL, "must be found");
-        p->subsume_by(proj, this);
+        assert(proj != NULL || p->_con == TypeFunc::I_O, "io may be dropped at an infinite loop");
+        if (proj != NULL) {
+          p->subsume_by(proj, this);
+        }
       }
     }
     break;
@@ -3601,13 +3626,6 @@ void Compile::record_failure(const char* reason) {
   if (_failure_reason == NULL) {
     // Record the first failure reason.
     _failure_reason = reason;
-  }
-
-  EventCompilerFailure event;
-  if (event.should_commit()) {
-    event.set_compileID(Compile::compile_id());
-    event.set_failure(reason);
-    event.commit();
   }
 
   if (!C->failure_reason_is(C2Compiler::retry_no_subsuming_loads())) {

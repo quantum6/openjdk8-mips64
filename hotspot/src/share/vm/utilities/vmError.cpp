@@ -33,6 +33,7 @@
 #include "precompiled.hpp"
 #include "compiler/compileBroker.hpp"
 #include "gc_interface/collectedHeap.hpp"
+#include "jfr/jfrEvents.hpp"
 #include "prims/whitebox.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/frame.inline.hpp"
@@ -49,6 +50,10 @@
 #include "utilities/events.hpp"
 #include "utilities/top.hpp"
 #include "utilities/vmError.hpp"
+#include "utilities/macros.hpp"
+#if INCLUDE_JFR
+#include "jfr/jfr.hpp"
+#endif
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
@@ -457,14 +462,7 @@ void VMError::report(outputStream* st) {
 #else
          const char *file = _filename;
 #endif
-         size_t len = strlen(file);
-         size_t buflen = sizeof(buf);
-
-         strncpy(buf, file, buflen);
-         if (len + 10 < buflen) {
-           sprintf(buf + len, ":%d", _lineno);
-         }
-         st->print(" (%s)", buf);
+         st->print(" (%s:%d)", file, _lineno);
        } else {
          st->print(" (0x%x)", _id);
        }
@@ -951,6 +949,13 @@ void VMError::report_and_die() {
     // are handled properly.
     reset_signal_handlers();
 
+    EventShutdown e;
+    if (e.should_commit()) {
+      e.set_reason("VM Error");
+      e.commit();
+    }
+
+    JFR_ONLY(Jfr::on_vm_shutdown(true);)
   } else {
     // If UseOsErrorReporting we call this for each level of the call stack
     // while searching for the exception handler.  Only the first level needs
@@ -1072,7 +1077,7 @@ void VMError::report_and_die() {
       out.print_raw   (cmd);
       out.print_raw_cr("\" ...");
 
-      if (os::fork_and_exec(cmd, true) < 0) {
+      if (os::fork_and_exec(cmd) < 0) {
         out.print_cr("os::fork_and_exec failed: %s (%d)", strerror(errno), errno);
       }
     }
@@ -1159,7 +1164,7 @@ void VM_ReportJavaOutOfMemory::doit() {
 #endif
     tty->print_cr("\"%s\"...", cmd);
 
-    if (os::fork_and_exec(cmd) < 0) {
+    if (os::fork_and_exec(cmd, true) < 0) {
       tty->print_cr("os::fork_and_exec failed: %s (%d)", strerror(errno), errno);
     }
   }

@@ -77,7 +77,6 @@ class LoaderConstraintTable;
 template <MEMFLAGS F> class HashtableBucket;
 class ResolutionErrorTable;
 class SymbolPropertyTable;
-class Ticks;
 
 // Certain classes are preloaded, such as java.lang.Object and java.lang.String.
 // They are all "well-known", in the sense that no class loader is allowed
@@ -242,7 +241,7 @@ class SystemDictionary : AllStatic {
   static Klass* resolve_or_fail(Symbol* class_name, bool throw_error, TRAPS);
 protected:
   // handle error translation for resolve_or_null results
-  static Klass* handle_resolution_exception(Symbol* class_name, Handle class_loader, Handle protection_domain, bool throw_error, KlassHandle klass_h, TRAPS);
+  static Klass* handle_resolution_exception(Symbol* class_name, bool throw_error, KlassHandle klass_h, TRAPS);
 
 public:
 
@@ -550,9 +549,11 @@ public:
 
   // Record the error when the first attempt to resolve a reference from a constant
   // pool entry to a class fails.
-  static void add_resolution_error(constantPoolHandle pool, int which, Symbol* error);
+  static void add_resolution_error(constantPoolHandle pool, int which, Symbol* error,
+                                   Symbol* message);
   static void delete_resolution_error(ConstantPool* pool);
-  static Symbol* find_resolution_error(constantPoolHandle pool, int which);
+  static Symbol* find_resolution_error(constantPoolHandle pool, int which,
+                                       Symbol** message);
 
  protected:
 
@@ -654,9 +655,6 @@ protected:
   // Setup link to hierarchy
   static void add_to_hierarchy(instanceKlassHandle k, TRAPS);
 
-  // event based tracing
-  static void post_class_load_event(const Ticks& start_time, instanceKlassHandle k,
-                                    Handle initiating_loader);
   // We pass in the hashtable index so we can calculate it outside of
   // the SystemDictionary_lock.
 

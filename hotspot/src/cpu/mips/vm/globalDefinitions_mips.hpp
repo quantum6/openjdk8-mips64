@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1999, 2013, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2016, Loongson Technology. All rights reserved.
+ * Copyright (c) 2015, 2020, Loongson Technology. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -35,5 +35,7 @@ const int StackAlignmentInBytes = (2*wordSize);
 // If set, SharedRuntime::c_calling_convention() must adapt
 // signatures accordingly.
 const bool CCallingConventionRequiresIntsAsLongs = false;
+
+#define SUPPORTS_NATIVE_CX8
 
 #endif // CPU_MIPS_VM_GLOBALDEFINITIONS_MIPS_HPP

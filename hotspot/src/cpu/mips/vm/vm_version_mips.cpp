@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 2014, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2019, Loongson Technology. All rights reserved.
+ * Copyright (c) 2015, 2020, Loongson Technology. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -33,6 +33,8 @@
 #ifdef TARGET_OS_FAMILY_linux
 # include "os_linux.inline.hpp"
 #endif
+
+#define A0 RA0
 
 int VM_Version::_cpuFeatures;
 const char* VM_Version::_features_str = "";
@@ -322,16 +324,23 @@ void VM_Version::get_processor_features() {
     if (FLAG_IS_DEFAULT(UseSyncLevel)) {
       FLAG_SET_DEFAULT(UseSyncLevel, 2000);
     }
-  } else if (needs_llsync() && needs_llsync() && needs_ulsync()) {
+  } else if (!needs_llsync() && !needs_llsync() && needs_ulsync()) {
     if (FLAG_IS_DEFAULT(UseSyncLevel)) {
       FLAG_SET_DEFAULT(UseSyncLevel, 3000);
     }
-  } else if (!needs_llsync() && !needs_llsync() && !needs_ulsync()) {
+  } else if (needs_llsync() && !needs_llsync() && needs_ulsync()) {
     if (FLAG_IS_DEFAULT(UseSyncLevel)) {
-      FLAG_SET_DEFAULT(UseSyncLevel, 0);
+      FLAG_SET_DEFAULT(UseSyncLevel, 4000);
+    }
+  } else if (needs_llsync() && needs_llsync() && needs_ulsync()) {
+    if (FLAG_IS_DEFAULT(UseSyncLevel)) {
+      FLAG_SET_DEFAULT(UseSyncLevel, 10000);
     }
   } else {
     assert(false, "Should Not Reach Here, what is the cpu type?");
+    if (FLAG_IS_DEFAULT(UseSyncLevel)) {
+      FLAG_SET_DEFAULT(UseSyncLevel, 10000);
+    }
   }
 
   if (supports_lext1()) {

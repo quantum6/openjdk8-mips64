@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -38,6 +38,8 @@
 #include "compiler/compileBroker.hpp"
 #include "interpreter/bytecodeStream.hpp"
 #include "interpreter/interpreter.hpp"
+#include "jfr/jfrEvents.hpp"
+#include "jfr/jni/jfrUpcalls.hpp"
 #include "memory/filemap.hpp"
 #include "memory/gcLocker.hpp"
 #include "memory/oopFactory.hpp"
@@ -64,9 +66,6 @@
 #include "services/threadService.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/ticks.hpp"
-#if INCLUDE_TRACE
-#include "trace/tracing.hpp"
-#endif
 
 Dictionary*            SystemDictionary::_dictionary          = NULL;
 PlaceholderTable*      SystemDictionary::_placeholders        = NULL;
@@ -96,6 +95,9 @@ bool        SystemDictionary::_has_checkPackageAccess     =  false;
 // lazily initialized klass variables
 Klass* volatile SystemDictionary::_abstract_ownable_synchronizer_klass = NULL;
 
+#if INCLUDE_JFR
+static const Symbol* jfr_event_handler_proxy = NULL;
+#endif // INCLUDE_JFR
 
 // ----------------------------------------------------------------------------
 // Java-level SystemLoader
@@ -141,6 +143,9 @@ bool SystemDictionary::is_internal_format(Symbol* class_name) {
 }
 
 #endif
+#if INCLUDE_JFR
+#include "jfr/jfr.hpp"
+#endif
 
 // ----------------------------------------------------------------------------
 // Parallel class loading check
@@ -180,12 +185,14 @@ Klass* SystemDictionary::resolve_or_fail(Symbol* class_name, Handle class_loader
   if (HAS_PENDING_EXCEPTION || klass == NULL) {
     KlassHandle k_h(THREAD, klass);
     // can return a null klass
-    klass = handle_resolution_exception(class_name, class_loader, protection_domain, throw_error, k_h, THREAD);
+    klass = handle_resolution_exception(class_name, throw_error, k_h, THREAD);
   }
   return klass;
 }
 
-Klass* SystemDictionary::handle_resolution_exception(Symbol* class_name, Handle class_loader, Handle protection_domain, bool throw_error, KlassHandle klass_h, TRAPS) {
+Klass* SystemDictionary::handle_resolution_exception(Symbol* class_name,
+                                                     bool throw_error,
+                                                     KlassHandle klass_h, TRAPS) {
   if (HAS_PENDING_EXCEPTION) {
     // If we have a pending exception we forward it to the caller, unless throw_error is true,
     // in which case we have to check whether the pending exception is a ClassNotFoundException,
@@ -393,7 +400,7 @@ Klass* SystemDictionary::resolve_super_or_fail(Symbol* child_name,
   }
   if (HAS_PENDING_EXCEPTION || superk_h() == NULL) {
     // can null superk
-    superk_h = KlassHandle(THREAD, handle_resolution_exception(class_name, class_loader, protection_domain, true, superk_h, THREAD));
+    superk_h = KlassHandle(THREAD, handle_resolution_exception(class_name, true, superk_h, THREAD));
   }
 
   return superk_h();
@@ -598,6 +605,22 @@ instanceKlassHandle SystemDictionary::handle_parallel_super_load(
   return (nh);
 }
 
+// utility function for class load event
+static void post_class_load_event(EventClassLoad &event,
+                                  instanceKlassHandle k,
+                                  Handle initiating_loader) {
+#if INCLUDE_JFR
+  if (event.should_commit()) {
+    event.set_loadedClass(k());
+    event.set_definingClassLoader(k->class_loader_data());
+    oop class_loader = initiating_loader.is_null() ? (oop)NULL : initiating_loader();
+    event.set_initiatingClassLoader(class_loader != NULL ?
+                                    ClassLoaderData::class_loader_data_or_null(class_loader) :
+                                    (ClassLoaderData*)NULL);
+    event.commit();
+  }
+#endif
+}
 
 Klass* SystemDictionary::resolve_instance_class_or_null(Symbol* name,
                                                         Handle class_loader,
@@ -606,7 +629,7 @@ Klass* SystemDictionary::resolve_instance_class_or_null(Symbol* name,
   assert(name != NULL && !FieldType::is_array(name) &&
          !FieldType::is_obj(name), "invalid class name");
 
-  Ticks class_load_start_time = Ticks::now();
+  EventClassLoad class_load_start_event;
 
   // UseNewReflection
   // Fix for 4474172; see evaluation for more details
@@ -857,7 +880,7 @@ Klass* SystemDictionary::resolve_instance_class_or_null(Symbol* name,
     return NULL;
   }
 
-  post_class_load_event(class_load_start_time, k, class_loader);
+  post_class_load_event(class_load_start_event, k, class_loader);
 
 #ifdef ASSERT
   {
@@ -982,7 +1005,7 @@ Klass* SystemDictionary::parse_stream(Symbol* class_name,
                                       TRAPS) {
   TempNewSymbol parsed_name = NULL;
 
-  Ticks class_load_start_time = Ticks::now();
+  EventClassLoad class_load_start_event;
 
   ClassLoaderData* loader_data;
   if (host_klass.not_null()) {
@@ -1043,12 +1066,24 @@ Klass* SystemDictionary::parse_stream(Symbol* class_name,
         JvmtiExport::post_class_load((JavaThread *) THREAD, k());
     }
 
-    post_class_load_event(class_load_start_time, k, class_loader);
+    post_class_load_event(class_load_start_event, k, class_loader);
   }
   assert(host_klass.not_null() || cp_patches == NULL,
          "cp_patches only found with host_klass");
 
   return k();
+}
+
+static bool is_prohibited_package_slow(Symbol* class_name) {
+  // Caller has ResourceMark
+  int length;
+  jchar* unicode = class_name->as_unicode(length);
+  return (length >= 5 &&
+          unicode[0] == 'j' &&
+          unicode[1] == 'a' &&
+          unicode[2] == 'v' &&
+          unicode[3] == 'a' &&
+          unicode[4] == '/');
 }
 
 // Add a klass to the system from a stream (called by jni_DefineClass and
@@ -1085,36 +1120,46 @@ Klass* SystemDictionary::resolve_from_stream(Symbol* class_name,
   //
   // Note: "name" is updated.
 
-  instanceKlassHandle k = ClassFileParser(st).parseClassFile(class_name,
-                                                             loader_data,
-                                                             protection_domain,
-                                                             parsed_name,
-                                                             verify,
-                                                             THREAD);
+  ClassFileParser parser(st);
+  instanceKlassHandle k = parser.parseClassFile(class_name,
+                                                loader_data,
+                                                protection_domain,
+                                                parsed_name,
+                                                verify,
+                                                THREAD);
 
   const char* pkg = "java/";
   size_t pkglen = strlen(pkg);
   if (!HAS_PENDING_EXCEPTION &&
       !class_loader.is_null() &&
       parsed_name != NULL &&
-      parsed_name->utf8_length() >= (int)pkglen &&
-      !strncmp((const char*)parsed_name->bytes(), pkg, pkglen)) {
-    // It is illegal to define classes in the "java." package from
-    // JVM_DefineClass or jni_DefineClass unless you're the bootclassloader
+      parsed_name->utf8_length() >= (int)pkglen) {
     ResourceMark rm(THREAD);
-    char* name = parsed_name->as_C_string();
-    char* index = strrchr(name, '/');
-    assert(index != NULL, "must be");
-    *index = '\0'; // chop to just the package name
-    while ((index = strchr(name, '/')) != NULL) {
-      *index = '.'; // replace '/' with '.' in package name
+    bool prohibited;
+    const jbyte* base = parsed_name->base();
+    if ((base[0] | base[1] | base[2] | base[3] | base[4]) & 0x80) {
+      prohibited = is_prohibited_package_slow(parsed_name);
+    } else {
+      char* name = parsed_name->as_C_string();
+      prohibited = (strncmp(name, pkg, pkglen) == 0);
     }
-    const char* fmt = "Prohibited package name: %s";
-    size_t len = strlen(fmt) + strlen(name);
-    char* message = NEW_RESOURCE_ARRAY(char, len);
-    jio_snprintf(message, len, fmt, name);
-    Exceptions::_throw_msg(THREAD_AND_LOCATION,
-      vmSymbols::java_lang_SecurityException(), message);
+    if (prohibited) {
+      // It is illegal to define classes in the "java." package from
+      // JVM_DefineClass or jni_DefineClass unless you're the bootclassloader
+      char* name = parsed_name->as_C_string();
+      char* index = strrchr(name, '/');
+      assert(index != NULL, "must be");
+      *index = '\0'; // chop to just the package name
+      while ((index = strchr(name, '/')) != NULL) {
+        *index = '.'; // replace '/' with '.' in package name
+      }
+      const char* fmt = "Prohibited package name: %s";
+      size_t len = strlen(fmt) + strlen(name);
+      char* message = NEW_RESOURCE_ARRAY(char, len);
+      jio_snprintf(message, len, fmt, name);
+      Exceptions::_throw_msg(THREAD_AND_LOCATION,
+        vmSymbols::java_lang_SecurityException(), message);
+    }
   }
 
   if (!HAS_PENDING_EXCEPTION) {
@@ -1124,6 +1169,14 @@ Klass* SystemDictionary::resolve_from_stream(Symbol* class_name,
     // asserts that that's the case.
     assert(is_internal_format(parsed_name),
            "external class name format used internally");
+
+#if INCLUDE_JFR
+    {
+      InstanceKlass* ik = k();
+      ON_KLASS_CREATION(ik, parser, THREAD);
+      k = instanceKlassHandle(ik);
+    }
+#endif
 
     // Add class just loaded
     // If a class loader supports parallel classloading handle parallel define requests
@@ -1307,6 +1360,24 @@ instanceKlassHandle SystemDictionary::load_instance_class(Symbol* class_name, Ha
     if (!k.is_null()) {
       k = find_or_define_instance_class(class_name, class_loader, k, CHECK_(nh));
     }
+
+#if INCLUDE_JFR
+    if (k.is_null() && (class_name == jfr_event_handler_proxy)) {
+      assert(jfr_event_handler_proxy != NULL, "invariant");
+      // EventHandlerProxy class is generated dynamically in
+      // EventHandlerProxyCreator::makeEventHandlerProxyClass
+      // method, so we generate a Java call from here.
+      //
+      // EventHandlerProxy class will finally be defined in
+      // SystemDictionary::resolve_from_stream method, down
+      // the call stack. Bootstrap classloader is parallel-capable,
+      // so no concurrency issues are expected.
+      CLEAR_PENDING_EXCEPTION;
+      k = JfrUpcalls::load_event_handler_proxy_class(THREAD);
+      assert(!k.is_null(), "invariant");
+    }
+#endif
+
     return k;
   } else {
     // Use user specified class loader to load class. Call loadClass operation on class_loader.
@@ -1385,6 +1456,15 @@ instanceKlassHandle SystemDictionary::load_instance_class(Symbol* class_name, Ha
   }
 }
 
+static void post_class_define_event(InstanceKlass* k, const ClassLoaderData* def_cld) {
+  EventClassDefine event;
+  if (event.should_commit()) {
+    event.set_definedClass(k);
+    event.set_definingClassLoader(def_cld);
+    event.commit();
+  }
+}
+
 void SystemDictionary::define_instance_class(instanceKlassHandle k, TRAPS) {
 
   ClassLoaderData* loader_data = k->class_loader_data();
@@ -1455,6 +1535,7 @@ void SystemDictionary::define_instance_class(instanceKlassHandle k, TRAPS) {
 
   }
 
+  post_class_define_event(k(), loader_data);
 }
 
 // Support parallel classloading
@@ -1716,6 +1797,7 @@ bool SystemDictionary::do_unloading(BoolObjectClosure* is_alive, bool clean_aliv
   // First, mark for unload all ClassLoaderData referencing a dead class loader.
   bool unloading_occurred = ClassLoaderDataGraph::do_unloading(is_alive, clean_alive);
   if (unloading_occurred) {
+    JFR_ONLY(Jfr::on_unloading_classes();)
     dictionary()->do_unloading();
     constraints()->purge_loader_constraints();
     resolution_errors()->purge_resolution_errors();
@@ -1849,6 +1931,9 @@ void SystemDictionary::initialize(TRAPS) {
   _system_loader_lock_obj = oopFactory::new_intArray(0, CHECK);
   // Initialize basic classes
   initialize_preloaded_classes(CHECK);
+#if INCLUDE_JFR
+  jfr_event_handler_proxy = SymbolTable::new_permanent_symbol("jdk/jfr/proxy/internal/EventHandlerProxy", CHECK);
+#endif // INCLUDE_JFR
 }
 
 // Compact table of directions on the initialization of klasses:
@@ -2184,12 +2269,13 @@ bool SystemDictionary::add_loader_constraint(Symbol* class_name,
 
 // Add entry to resolution error table to record the error when the first
 // attempt to resolve a reference to a class has failed.
-void SystemDictionary::add_resolution_error(constantPoolHandle pool, int which, Symbol* error) {
+void SystemDictionary::add_resolution_error(constantPoolHandle pool, int which,
+                                            Symbol* error, Symbol* message) {
   unsigned int hash = resolution_errors()->compute_hash(pool, which);
   int index = resolution_errors()->hash_to_index(hash);
   {
     MutexLocker ml(SystemDictionary_lock, Thread::current());
-    resolution_errors()->add_entry(index, hash, pool, which, error);
+    resolution_errors()->add_entry(index, hash, pool, which, error, message);
   }
 }
 
@@ -2199,13 +2285,19 @@ void SystemDictionary::delete_resolution_error(ConstantPool* pool) {
 }
 
 // Lookup resolution error table. Returns error if found, otherwise NULL.
-Symbol* SystemDictionary::find_resolution_error(constantPoolHandle pool, int which) {
+Symbol* SystemDictionary::find_resolution_error(constantPoolHandle pool, int which,
+                                                Symbol** message) {
   unsigned int hash = resolution_errors()->compute_hash(pool, which);
   int index = resolution_errors()->hash_to_index(hash);
   {
     MutexLocker ml(SystemDictionary_lock, Thread::current());
     ResolutionErrorEntry* entry = resolution_errors()->find_entry(index, hash, pool, which);
-    return (entry != NULL) ? entry->error() : (Symbol*)NULL;
+    if (entry != NULL) {
+      *message = entry->message();
+      return entry->error();
+    } else {
+      return NULL;
+    }
   }
 }
 
@@ -2685,26 +2777,6 @@ void SystemDictionary::verify() {
   // Verify constraint table
   guarantee(constraints() != NULL, "Verify of loader constraints failed");
   constraints()->verify(dictionary(), placeholders());
-}
-
-// utility function for class load event
-void SystemDictionary::post_class_load_event(const Ticks& start_time,
-                                             instanceKlassHandle k,
-                                             Handle initiating_loader) {
-#if INCLUDE_TRACE
-  EventClassLoad event(UNTIMED);
-  if (event.should_commit()) {
-    event.set_starttime(start_time);
-    event.set_loadedClass(k());
-    oop defining_class_loader = k->class_loader();
-    event.set_definingClassLoader(defining_class_loader !=  NULL ?
-                                    defining_class_loader->klass() : (Klass*)NULL);
-    oop class_loader = initiating_loader.is_null() ? (oop)NULL : initiating_loader();
-    event.set_initiatingClassLoader(class_loader != NULL ?
-                                      class_loader->klass() : (Klass*)NULL);
-    event.commit();
-  }
-#endif // INCLUDE_TRACE
 }
 
 #ifndef PRODUCT

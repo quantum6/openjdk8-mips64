@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2000, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -151,6 +151,7 @@ public class Config {
         KdcComm.initStatic();
         EType.initStatic();
         Checksum.initStatic();
+        KrbAsReqBuilder.ReferralsState.initStatic();
     }
 
 
@@ -275,7 +276,7 @@ public class Config {
      * value does not look like a boolean value.
      * @throws IllegalArgumentException see {@link #get(String...)}
      */
-    private Boolean getBooleanObject(String... keys) {
+    public Boolean getBooleanObject(String... keys) {
         String s = get(keys);
         if (s == null) {
             return null;
@@ -361,7 +362,7 @@ public class Config {
      *
      * @param s the string duration
      * @return time in seconds
-     * @throw KrbException if format is illegal
+     * @throws KrbException if format is illegal
      */
     public static int duration(String s) throws KrbException {
 
@@ -423,7 +424,7 @@ public class Config {
      * @param keys the keys
      * @return the int value, Integer.MIN_VALUE is returned if it cannot be
      * found or the value is not a legal integer.
-     * @throw IllegalArgumentException if any of the keys is illegal
+     * @throws IllegalArgumentException if any of the keys is illegal
      * @see #get(java.lang.String[])
      */
     public int getIntValue(String... keys) {

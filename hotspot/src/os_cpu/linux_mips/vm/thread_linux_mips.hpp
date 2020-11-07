@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2019, Loongson Technology. All rights reserved.
+ * Copyright (c) 2015, 2020, Loongson Technology. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,6 +23,9 @@
  *
  */
 
+#ifndef OS_CPU_LINUX_MIPS_VM_THREAD_LINUX_MIPS_HPP
+#define OS_CPU_LINUX_MIPS_VM_THREAD_LINUX_MIPS_HPP
+
  private:
   void pd_initialize();
 
@@ -35,6 +38,7 @@
       return frame(_anchor.last_Java_sp(), _anchor.last_Java_fp());
     }
   }
+
 
  public:
   // Mutators are highly dangerous....
@@ -57,6 +61,11 @@
   bool pd_get_top_frame_for_signal_handler(frame* fr_addr, void* ucontext,
     bool isInJava);
 
+  bool pd_get_top_frame_for_profiling(frame* fr_addr, void* ucontext, bool isInJava);
+private:
+  bool pd_get_top_frame(frame* fr_addr, void* ucontext, bool isInJava);
+public:
+
   // These routines are only used on cpu architectures that
   // have separate register stacks (Itanium).
   static bool register_stack_overflow() { return false; }
@@ -67,3 +76,5 @@
   volatile address _handle_wrong_method_stub;
   static ByteSize handle_wrong_method_stub_offset()          { return byte_offset_of(JavaThread, _handle_wrong_method_stub); }
   void set_handle_wrong_method_stub(address stub)          { _handle_wrong_method_stub = stub; }
+
+#endif // OS_CPU_LINUX_MIPS_VM_THREAD_LINUX_MIPS_HPP

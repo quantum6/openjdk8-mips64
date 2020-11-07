@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2003, 2013, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2019, Loongson Technology. All rights reserved.
+ * Copyright (c) 2015, 2020, Loongson Technology. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -47,6 +47,21 @@
 #include "utilities/debug.hpp"
 
 #define __ _masm->
+
+#define A0 RA0
+#define A1 RA1
+#define A2 RA2
+#define A3 RA3
+#define A4 RA4
+#define A5 RA5
+#define A6 RA6
+#define A7 RA7
+#define T0 RT0
+#define T1 RT1
+#define T2 RT2
+#define T3 RT3
+#define T8 RT8
+#define T9 RT9
 
 #ifndef CC_INTERP
 
@@ -569,11 +584,16 @@ void TemplateInterpreterGenerator::generate_fixed_frame(bool native_call) {
   // initialize fixed part of activation frame
   // sender's sp in Rsender
   int i = 0;
-  __ sd(RA, SP, (-1) * wordSize);   // save return address
-  __ sd(FP, SP, (-2) * wordSize);  // save sender's fp
-  __ daddiu(FP, SP, (-2) * wordSize);
+  int frame_size = 9;
+#ifndef CORE
+  ++frame_size;
+#endif
+  __ daddiu(SP, SP, (-frame_size) * wordSize);
+  __ sd(RA, SP, (frame_size - 1) * wordSize);   // save return address
+  __ sd(FP, SP, (frame_size - 2) * wordSize);  // save sender's fp
+  __ daddiu(FP, SP, (frame_size - 2) * wordSize);
   __ sd(Rsender, FP, (-++i) * wordSize);  // save sender's sp
-  __ sd(R0, FP,(-++i)*wordSize);       //save last_sp as null
+  __ sd(R0, FP,(-++i) * wordSize);       //save last_sp as null
   __ sd(LVP, FP, (-++i) * wordSize);  // save locals offset
   __ ld(BCP, Rmethod, in_bytes(Method::const_offset())); // get constMethodOop
   __ daddiu(BCP, BCP, in_bytes(ConstMethod::codes_offset())); // get codebase
@@ -601,8 +621,8 @@ void TemplateInterpreterGenerator::generate_fixed_frame(bool native_call) {
   } else {
     __ sd(BCP, FP, (-++i) * wordSize);          // set bcp
   }
-  __ daddiu(SP, FP, (-++i) * wordSize);
-  __ sd(SP, FP, (-i) * wordSize);               // reserve word for pointer to expression stack bottom
+  __ sd(SP, FP, (-++i) * wordSize);               // reserve word for pointer to expression stack bottom
+  assert(i + 2 == frame_size, "i + 2 should be equal to frame_size");
 }
 
 // End of helpers
@@ -1041,7 +1061,7 @@ address InterpreterGenerator::generate_native_entry(bool synchronized) {
   // work registers
   const Register method = Rmethod;
   //const Register thread = T2;
-  const Register t      = RT4;
+  const Register t      = T8;
 
   __ get_method(method);
   __ verify_oop(method);

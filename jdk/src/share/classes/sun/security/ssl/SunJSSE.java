@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1999, 2013, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1999, 2020, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,6 +25,8 @@
 
 
 package sun.security.ssl;
+
+import static sun.security.util.SecurityConstants.PROVIDER_VER;
 
 import java.security.*;
 
@@ -61,7 +63,7 @@ public abstract class SunJSSE extends java.security.Provider {
 
     private static String info = "Sun JSSE provider" +
         "(PKCS12, SunX509/PKIX key/trust factories, " +
-        "SSLv3/TLSv1/TLSv1.1/TLSv1.2)";
+        "SSLv3/TLSv1/TLSv1.1/TLSv1.2/TLSv1.3)";
 
     private static String fipsInfo =
         "Sun JSSE provider (FIPS mode, crypto provider ";
@@ -132,7 +134,7 @@ public abstract class SunJSSE extends java.security.Provider {
 
     private SunJSSE(java.security.Provider cryptoProvider,
             String providerName) {
-        super("SunJSSE", 1.8d, fipsInfo + providerName + ")");
+        super("SunJSSE", PROVIDER_VER, fipsInfo + providerName + ")");
         subclassCheck();
         if (cryptoProvider == null) {
             // Calling Security.getProvider() will cause other providers to be
@@ -160,12 +162,12 @@ public abstract class SunJSSE extends java.security.Provider {
     private void doRegister(boolean isfips) {
         if (isfips == false) {
             put("KeyFactory.RSA",
-                "sun.security.rsa.RSAKeyFactory");
+                "sun.security.rsa.RSAKeyFactory$Legacy");
             put("Alg.Alias.KeyFactory.1.2.840.113549.1.1", "RSA");
             put("Alg.Alias.KeyFactory.OID.1.2.840.113549.1.1", "RSA");
 
             put("KeyPairGenerator.RSA",
-                "sun.security.rsa.RSAKeyPairGenerator");
+                "sun.security.rsa.RSAKeyPairGenerator$Legacy");
             put("Alg.Alias.KeyPairGenerator.1.2.840.113549.1.1", "RSA");
             put("Alg.Alias.KeyPairGenerator.OID.1.2.840.113549.1.1", "RSA");
 
@@ -213,6 +215,8 @@ public abstract class SunJSSE extends java.security.Provider {
             "sun.security.ssl.SSLContextImpl$TLS11Context");
         put("SSLContext.TLSv1.2",
             "sun.security.ssl.SSLContextImpl$TLS12Context");
+        put("SSLContext.TLSv1.3",
+            "sun.security.ssl.SSLContextImpl$TLS13Context");
         put("SSLContext.TLS",
             "sun.security.ssl.SSLContextImpl$TLSContext");
         if (isfips == false) {

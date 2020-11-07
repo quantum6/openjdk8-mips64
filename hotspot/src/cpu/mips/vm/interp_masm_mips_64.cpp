@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2003, 2013, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2019, Loongson Technology. All rights reserved.
+ * Copyright (c) 2015, 2020, Loongson Technology. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -39,6 +39,20 @@
 #include "runtime/sharedRuntime.hpp"
 #include "runtime/thread.inline.hpp"
 
+#define A0 RA0
+#define A1 RA1
+#define A2 RA2
+#define A3 RA3
+#define A4 RA4
+#define A5 RA5
+#define A6 RA6
+#define A7 RA7
+#define T0 RT0
+#define T1 RT1
+#define T2 RT2
+#define T3 RT3
+#define T8 RT8
+#define T9 RT9
 
 // Implementation of InterpreterMacroAssembler
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 1997, 2014, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2019, Loongson Technology. All rights reserved.
+ * Copyright (c) 2015, 2020, Loongson Technology. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -81,6 +81,21 @@ Address::Address(address loc, RelocationHolder spec) {
   _rspec = spec;
 }
 
+
+#define A0 RA0
+#define A1 RA1
+#define A2 RA2
+#define A3 RA3
+#define A4 RA4
+#define A5 RA5
+#define A6 RA6
+#define A7 RA7
+#define T0 RT0
+#define T1 RT1
+#define T2 RT2
+#define T3 RT3
+#define T8 RT8
+#define T9 RT9
 
 // Implementation of Assembler
 const char *Assembler::ops_name[] = {
@@ -490,6 +505,7 @@ void Assembler::lea(Register rt, Address src) {
         daddu(AT, AT, base);
         daddiu(dst, AT, disp);
       } else {
+        assert_different_registers(dst, AT);
         lui(AT, split_low(disp >> 16));
         if (split_low(disp)) ori(AT, AT, split_low(disp));
         daddu(AT, AT, base);
@@ -571,22 +587,17 @@ void Assembler::sd(Register rt, Address dst) {
           sd(src, AT, 0);
         }
       } else {
-        sd(T9, SP, -wordSize);
         daddiu(SP, SP, -wordSize);
+        sd(T9, SP, 0);
 
         dsll(AT, index, scale);
         daddu(AT, base, AT);
         lui(T9, split_low(disp >> 16));
         if (split_low(disp)) ori(T9, T9, split_low(disp));
-        if (UseLEXT1) {
-          gssdx(src, AT, T9, 0);
-        } else {
-          daddu(AT, AT, T9);
-          sd(src, AT, 0);
-        }
-
+        daddu(AT, AT, T9);
         ld(T9, SP, 0);
         daddiu(SP, SP, wordSize);
+        sd(src, AT, 0);
       }
     }
   } else {
@@ -663,22 +674,17 @@ void Assembler::sw(Register rt, Address dst) {
           sw(src, AT, 0);
         }
       } else {
-        sd(T9, SP, -wordSize);
         daddiu(SP, SP, -wordSize);
+        sd(T9, SP, 0);
 
         dsll(AT, index, scale);
         daddu(AT, base, AT);
         lui(T9, split_low(disp >> 16));
         if (split_low(disp)) ori(T9, T9, split_low(disp));
-        if (UseLEXT1) {
-          gsswx(src, AT, T9, 0);
-        } else {
-          daddu(AT, AT, T9);
-          sw(src, AT, 0);
-        }
-
+        daddu(AT, AT, T9);
         ld(T9, SP, 0);
         daddiu(SP, SP, wordSize);
+        sw(src, AT, 0);
       }
     }
   } else {

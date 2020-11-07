@@ -593,21 +593,10 @@ void* os::malloc(size_t size, MEMFLAGS memflags, const NativeCallStack& stack) {
   NOT_PRODUCT(inc_stat_counter(&num_mallocs, 1));
   NOT_PRODUCT(inc_stat_counter(&alloc_bytes, size));
 
-#ifdef ASSERT
-  // checking for the WatcherThread and crash_protection first
-  // since os::malloc can be called when the libjvm.{dll,so} is
-  // first loaded and we don't have a thread yet.
-  // try to find the thread after we see that the watcher thread
-  // exists and has crash protection.
-  WatcherThread *wt = WatcherThread::watcher_thread();
-  if (wt != NULL && wt->has_crash_protection()) {
-    Thread* thread = ThreadLocalStorage::get_thread_slow();
-    if (thread == wt) {
-      assert(!wt->has_crash_protection(),
-          "Can't malloc with crash protection from WatcherThread");
-    }
-  }
-#endif
+  // Since os::malloc can be called when the libjvm.{dll,so} is
+  // first loaded and we don't have a thread yet we must accept NULL also here.
+  assert(!os::ThreadCrashProtection::is_crash_protected(ThreadLocalStorage::thread()),
+         "malloc() not allowed when crash protection is set");
 
   if (size == 0) {
     // return a valid pointer if size is zero
@@ -879,10 +868,9 @@ void os::print_date_and_time(outputStream *st, char* buf, size_t buflen) {
   }
 
   double t = os::elapsedTime();
-  // NOTE: It tends to crash after a SEGV if we want to printf("%f",...) in
-  //       Linux. Must be a bug in glibc ? Workaround is to round "t" to int
-  //       before printf. We lost some precision, but who cares?
+  // NOTE: a crash using printf("%f",...) on Linux was historically noted here.
   int eltime = (int)t;  // elapsed time in seconds
+  int eltimeFraction = (int) ((t - eltime) * 1000000);
 
   // print elapsed time in a human-readable format:
   int eldays = eltime / secs_per_day;
@@ -892,7 +880,7 @@ void os::print_date_and_time(outputStream *st, char* buf, size_t buflen) {
   int elmins = (eltime - day_secs - hour_secs) / secs_per_min;
   int minute_secs = elmins * secs_per_min;
   int elsecs = (eltime - day_secs - hour_secs - minute_secs);
-  st->print_cr("elapsed time: %d seconds (%dd %dh %dm %ds)", eltime, eldays, elhours, elmins, elsecs);
+  st->print_cr("elapsed time: %d.%06d seconds (%dd %dh %dm %ds)", eltime, eltimeFraction, eldays, elhours, elmins, elsecs);
 }
 
 // moved from debug.cpp (used to be find()) but still called from there

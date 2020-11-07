@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2019, Loongson Technology. All rights reserved.
+ * Copyright (c) 2015, 2020, Loongson Technology. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -178,18 +178,18 @@ CONSTANT_REGISTER_DECLARATION(Register, i31,   (31));
 #define AT ((Register)(i1_RegisterEnumValue))
 #define V0 ((Register)(i2_RegisterEnumValue))
 #define V1 ((Register)(i3_RegisterEnumValue))
-#define A0 ((Register)(i4_RegisterEnumValue))
-#define A1 ((Register)(i5_RegisterEnumValue))
-#define A2 ((Register)(i6_RegisterEnumValue))
-#define A3 ((Register)(i7_RegisterEnumValue))
-#define A4 ((Register)(i8_RegisterEnumValue))
-#define A5 ((Register)(i9_RegisterEnumValue))
-#define A6 ((Register)(i10_RegisterEnumValue))
-#define A7 ((Register)(i11_RegisterEnumValue))
-#define T0 ((Register)(i12_RegisterEnumValue))
-#define T1 ((Register)(i13_RegisterEnumValue))
-#define T2 ((Register)(i14_RegisterEnumValue))
-#define T3 ((Register)(i15_RegisterEnumValue))
+#define RA0 ((Register)(i4_RegisterEnumValue))
+#define RA1 ((Register)(i5_RegisterEnumValue))
+#define RA2 ((Register)(i6_RegisterEnumValue))
+#define RA3 ((Register)(i7_RegisterEnumValue))
+#define RA4 ((Register)(i8_RegisterEnumValue))
+#define RA5 ((Register)(i9_RegisterEnumValue))
+#define RA6 ((Register)(i10_RegisterEnumValue))
+#define RA7 ((Register)(i11_RegisterEnumValue))
+#define RT0 ((Register)(i12_RegisterEnumValue))
+#define RT1 ((Register)(i13_RegisterEnumValue))
+#define RT2 ((Register)(i14_RegisterEnumValue))
+#define RT3 ((Register)(i15_RegisterEnumValue))
 #define S0 ((Register)(i16_RegisterEnumValue))
 #define S1 ((Register)(i17_RegisterEnumValue))
 #define S2 ((Register)(i18_RegisterEnumValue))
@@ -198,8 +198,8 @@ CONSTANT_REGISTER_DECLARATION(Register, i31,   (31));
 #define S5 ((Register)(i21_RegisterEnumValue))
 #define S6 ((Register)(i22_RegisterEnumValue))
 #define S7 ((Register)(i23_RegisterEnumValue))
-#define T8 ((Register)(i24_RegisterEnumValue))
-#define T9 ((Register)(i25_RegisterEnumValue))
+#define RT8 ((Register)(i24_RegisterEnumValue))
+#define RT9 ((Register)(i25_RegisterEnumValue))
 #define K0 ((Register)(i26_RegisterEnumValue))
 #define K1 ((Register)(i27_RegisterEnumValue))
 #define GP ((Register)(i28_RegisterEnumValue))
@@ -208,18 +208,20 @@ CONSTANT_REGISTER_DECLARATION(Register, i31,   (31));
 #define S8 ((Register)(i30_RegisterEnumValue))
 #define RA ((Register)(i31_RegisterEnumValue))
 
-#define c_rarg0       T0
-#define c_rarg1       T1
+#define c_rarg0       RT0
+#define c_rarg1       RT1
 #define Rmethod       S3
 #define Rsender       S4
 #define Rnext         S1
 
+/*
 #define RT0       T0
 #define RT1       T1
 #define RT2       T2
 #define RT3       T3
 #define RT4       T8
 #define RT5       T9
+*/
 #endif //_LP64
 
 
